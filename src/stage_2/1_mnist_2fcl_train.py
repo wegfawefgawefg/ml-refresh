@@ -53,5 +53,5 @@ for ii in tqdm(range(len(inputs))):
         se = np.sum(np.square(w2g))
         print(f"e: {se}")
 
-if SAVE := True:
+if SAVE := False:
     np.savez(model_path, w1=w1, w2=w2)
