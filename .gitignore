@@ -164,3 +164,7 @@ cython_debug/
 *.npy
 *.ptm
 *.weights
+
+# Keep tiny showcase videos from sq_nextframe_1
+!src/sq_nextframe_1/keep/
+!src/sq_nextframe_1/keep/*.mp4
