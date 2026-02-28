@@ -60,34 +60,44 @@ frames = frames.to(device)
 ##################################################################
 #  TRAIN
 ##################################################################
+lr = 0.0001
 model_path = "./model.ptm"
 
 from sq_nextframe_1.model import Network
 
-
-dshape = 784 * 3
+twenty_eight_squared = 28 * 28 * 3
+one_twenty_eight_squared = 128 * 128 * 3
+dshape = one_twenty_eight_squared
 model = Network(lr, input_shape=dshape, output_shape=dshape).to(device)
-model.load_state_dict(torch.load(model_path))
-model.to(device)
-model.eval()
-
 frames = frames.to(model.device)
 
-accuracies = []
+# for i, layer in enumerate(model.children()):
+#     model[i].weight.data * 0.001
 
-bar = tqdm(range((frames.shape[0] - 1) // 8))
+losses = []
+bar = tqdm(range(frames.shape[0] - 1))
 for ii in bar:
     i = frames[ii]
     t = frames[ii + 1]
 
     pred = model(i)
+    loss = model.loss(pred, t)
+    losses.append(loss)
+    if len(losses) > 10:
+        losses.pop(0)
 
-    mse = torch.mean((pred - t) ** 2)
-    accuracies.append(mse)
+    if ii % 100 == 0:
+        avg_loss = sum(losses) / len(losses)
+        bar.set_description(f"avg loss: {avg_loss:.4f}")
 
-    # avg_accuracy = (avg_accuracy * ii + mse.item()) / (ii + 1)
+    # model.zero_grad()
+    model.optimizer.zero_grad()
+    loss.backward()
+    model.optimizer.step()
 
-    bar.set_description(f"avg accuracy: {mse:.4f}")
+    # with torch.no_grad():
+    #     for param in model.parameters():
+    #         param -= lr * param.grad
 
-avg_accuracy = sum(accuracies) / len(accuracies)
-print(f"Final average accuracy: {avg_accuracy:.4f}")
+if SAVE := True:
+    torch.save(model.state_dict(), model_path)

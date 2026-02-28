@@ -5,25 +5,39 @@ import torch.optim as optim
 
 
 class Network(torch.nn.Module):
-    HIDDEN_SIZE = 512
+    DROPOUT_FRAC = 0.1
+
+    # HIDDEN_SIZE = 128
+    # HIDDEN_SIZE = 256
+    # HIDDEN_SIZE = 512
+    HIDDEN_SIZE = 1024
 
     def __init__(self, alpha, input_shape, output_shape):
         super().__init__()
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.fc1 = nn.Linear(input_shape, Network.HIDDEN_SIZE).to(self.device)
-        self.fc2 = nn.Linear(Network.HIDDEN_SIZE, output_shape).to(self.device)
+        self.layers = nn.Sequential(
+            nn.Linear(input_shape, Network.HIDDEN_SIZE),
+            nn.ReLU(),
+            nn.Dropout(Network.DROPOUT_FRAC),
+            nn.Linear(Network.HIDDEN_SIZE, Network.HIDDEN_SIZE),
+            nn.ReLU(),
+            nn.Dropout(Network.DROPOUT_FRAC),
+            nn.Linear(Network.HIDDEN_SIZE, Network.HIDDEN_SIZE),
+            nn.ReLU(),
+            nn.Dropout(Network.DROPOUT_FRAC),
+            nn.Linear(Network.HIDDEN_SIZE, output_shape),
+        )
 
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
-        self.loss = nn.MSELoss()
+        self.loss = nn.MSELoss(reduction="sum")
         self = self.to(self.device)
         for param in self.parameters():
             param.to(self.device)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
+        y = self.layers(x)
+        return y
 
 
 if __name__ == "__main__":

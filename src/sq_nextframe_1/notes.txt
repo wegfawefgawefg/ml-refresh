@@ -1,0 +1,5 @@
+- probably data should be randomized pairs?
+    make a pair index generator
+    reduce data ordering dependency (industry standard but philosophically impure?)
+- need output viewer
+- mini batches might speed up, reduce noise

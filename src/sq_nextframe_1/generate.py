@@ -1,31 +1,27 @@
-import torch
-from torchvision import transforms
 import os
-from tqdm import tqdm
 import subprocess
+
+import torch
+from model import Network
+from torchvision import transforms
 from torchvision.transforms import functional as F
+from tqdm import tqdm
 
-
-duration_in_seconds = 60
+duration_in_seconds = 16
 fps = 60
-
 num_frames = fps * duration_in_seconds
 
-# Load the model
-model_path = "./model.ptm"
-from model_4 import Network
 
+frame_dim = 128
+model_path = f"./model_{frame_dim}.ptm"
 device = torch.device("cuda:0")
-dshape = 784 * 3
+
+dshape = frame_dim * frame_dim * 3
+
 model = Network(0.0001, input_shape=dshape, output_shape=dshape).to(device)
 model.load_state_dict(torch.load(model_path))
 model.to(device)
 model.eval()
-
-# Make a container for the output frames
-frames = torch.zeros((num_frames, dshape), dtype=torch.float32, device=device)
-starter_frame = torch.rand((dshape), dtype=torch.float32, device=device)
-frames[0] = starter_frame
 
 scale_factor = 1.80  # How much to zoom on each frame. Adjust as needed.
 transform = transforms.Compose(
@@ -37,41 +33,46 @@ transform = transforms.Compose(
     ]
 )
 
-# generate
-bar = tqdm(range(frames.shape[0] - 1))
-for ii in bar:
-    i = frames[ii]
+################################################################################
+# GENERATE FRAMES
+################################################################################
+output_folder = "generated_frames"
+if os.path.exists(output_folder):
+    subprocess.call(f"rm -rf {output_folder}", shell=True)
+os.makedirs(output_folder, exist_ok=True)
 
+frame = torch.rand((dshape), dtype=torch.float32, device=device).detach()
+
+bar = tqdm(range(num_frames))
+for ii in bar:
     #########
     # variation needs to be added between frames to increase entropy
     #########
 
     # 1 PIXEL ZOOM METHOD
-    i = i.view(3, 28, 28).cpu()
-    i = transform(i).to(device).flatten()
+    # i = i.view(3, 28, 28).cpu()
+    # i = transform(i).to(device).flatten()
 
     # NOISE METHOD
-    i = i + torch.rand((dshape), dtype=torch.float32, device=device) * 0.5
+    n = 0.3
+    frame = (
+        frame * (1.0 - n) + torch.rand((dshape), dtype=torch.float32, device=device) * n
+    )
+    # clamp high values
+    frame = torch.clamp(frame, 0.0, 1.0)
 
-    o = model(i)
-    frames[ii + 1] = o
+    frame = model(frame)
 
-# render video
-output_folder = "output_frames"
-os.makedirs(output_folder, exist_ok=True)
-
-frames = frames.cpu()
-bar = tqdm(range(frames.shape[0]))
-for ii in bar:
-    frame = frames[ii]
-    frame = frame.view(3, 28, 28)
-    frame_image = transforms.ToPILImage()(frame)
+    # save the frame
+    cf = frame.cpu()
+    cf = cf.view(3, frame_dim, frame_dim)
+    frame_image = transforms.ToPILImage()(cf)
 
     # Save the PIL image as a PNG file
-    file_path = os.path.join(output_folder, f"frame_{ii + 1:05d}.png")
+    file_path = os.path.join(output_folder, f"{ii + 1:05d}.png")
     frame_image.save(file_path)
 
 # Use FFmpeg to concatenate the frames into a video
 output_video = "output_video.mp4"
-ffmpeg_cmd = f"ffmpeg -r {fps} -i {output_folder}/frame_%05d.png -c:v libx264 -pix_fmt yuv420p {output_video} -y"
+ffmpeg_cmd = f"ffmpeg -r {fps} -i {output_folder}/%05d.png -c:v libx264 -pix_fmt yuv420p {output_video} -y"
 subprocess.call(ffmpeg_cmd, shell=True)
